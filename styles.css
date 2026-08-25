@@ -1,6 +1,6 @@
 :root {
   --brightness: 0.5;
-  --bg-hue: 250;
+  --bg-hue: 140;
 }
 
 * {
@@ -13,7 +13,7 @@ body {
   min-height: 100vh;
   font-family: system-ui, sans-serif;
   line-height: 1.6;
-  color: #f2f0ff;
+  color: #f0fff4;
   background: radial-gradient(
     circle at 50% calc(20% + var(--brightness) * 40%),
     hsl(calc(var(--bg-hue) + var(--brightness) * 40) 70% 22%),
@@ -30,7 +30,7 @@ main {
 }
 
 a {
-  color: #c9c2ff;
+  color: #c2ffd4;
 }
 
 h1 {
@@ -52,6 +52,14 @@ h1 {
 .note {
   opacity: 0.7;
   font-size: 0.95rem;
+}
+
+.waveform {
+  display: block;
+  width: 100%;
+  max-width: 32rem;
+  height: 6rem;
+  margin: 0 auto;
 }
 
 .instrument {
@@ -82,7 +90,7 @@ h1 {
   box-shadow:
     0 0 calc(var(--glow) * 2.5rem) hsl(calc(var(--bg-hue) + 60) 90% 65% / var(--glow)),
     inset 0 0 0.4rem rgb(255 255 255 / 0.3);
-  color: #1a1330;
+  color: #13301a;
   font-weight: 700;
   cursor: pointer;
   display: flex;

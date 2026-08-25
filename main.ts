@@ -11,9 +11,16 @@ const RELEASE = 0.35;
 const instrument = document.querySelector<HTMLElement>("#instrument");
 const hint = document.querySelector<HTMLElement>("#hint");
 const pads = Array.from(document.querySelectorAll<HTMLButtonElement>(".pad"));
+const waveformCanvas = document.querySelector<HTMLCanvasElement>("#waveform");
+const waveformCtx = waveformCanvas?.getContext("2d") ?? null;
+// Same hue the pads glow at, so the trace reads as part of the instrument
+// rather than a separate widget bolted on.
+const waveformHue = Number(getComputedStyle(document.documentElement).getPropertyValue("--bg-hue")) + 60;
 
 let audioContext: AudioContext | null = null;
 let masterFilter: BiquadFilterNode | null = null;
+let analyser: AnalyserNode | null = null;
+let waveformData: Uint8Array<ArrayBuffer> | null = null;
 let brightness = 0.5; // 0 = dark, 1 = bright — also drives the CSS backdrop.
 
 type Voice = { oscillator: OscillatorNode; gain: GainNode };
@@ -58,8 +65,14 @@ function ensureAudio(): AudioContext {
   wet.connect(compressor);
   compressor.connect(context.destination);
 
+  const analyserNode = context.createAnalyser();
+  analyserNode.fftSize = 2048;
+  compressor.connect(analyserNode);
+
   audioContext = context;
   masterFilter = filter;
+  analyser = analyserNode;
+  waveformData = new Uint8Array(analyserNode.fftSize);
   return context;
 }
 
@@ -251,3 +264,50 @@ document.addEventListener("visibilitychange", () => {
 });
 
 setBrightness(brightness);
+
+// The canvas backing store is sized in device pixels so the trace stays
+// crisp on high-DPI screens; setTransform (not scale) keeps repeated
+// resizes from compounding the DPR factor.
+function resizeWaveform() {
+  if (!waveformCanvas || !waveformCtx) return;
+  const dpr = window.devicePixelRatio || 1;
+  const rect = waveformCanvas.getBoundingClientRect();
+  waveformCanvas.width = rect.width * dpr;
+  waveformCanvas.height = rect.height * dpr;
+  waveformCtx.setTransform(dpr, 0, 0, dpr, 0, 0);
+}
+
+function drawWaveform() {
+  requestAnimationFrame(drawWaveform);
+  if (!waveformCanvas || !waveformCtx) return;
+
+  const width = waveformCanvas.clientWidth;
+  const height = waveformCanvas.clientHeight;
+  waveformCtx.clearRect(0, 0, width, height);
+  waveformCtx.lineWidth = 2;
+
+  if (!analyser || !waveformData) {
+    waveformCtx.strokeStyle = `hsl(${waveformHue} 40% 60% / 0.4)`;
+    waveformCtx.beginPath();
+    waveformCtx.moveTo(0, height / 2);
+    waveformCtx.lineTo(width, height / 2);
+    waveformCtx.stroke();
+    return;
+  }
+
+  analyser.getByteTimeDomainData(waveformData);
+  waveformCtx.strokeStyle = `hsl(${waveformHue} 90% 65%)`;
+  waveformCtx.beginPath();
+  const step = width / waveformData.length;
+  for (let i = 0; i < waveformData.length; i++) {
+    const y = height / 2 + (waveformData[i] / 128 - 1) * (height / 2) * 0.9;
+    const x = i * step;
+    if (i === 0) waveformCtx.moveTo(x, y);
+    else waveformCtx.lineTo(x, y);
+  }
+  waveformCtx.stroke();
+}
+
+window.addEventListener("resize", resizeWaveform);
+resizeWaveform();
+requestAnimationFrame(drawWaveform);
