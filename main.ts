@@ -1,12 +1,18 @@
-// Drift: an eight-pad pentatonic instrument. Every note lives in the same
-// scale, so any combination of pads — one finger or five — sounds
-// consonant. Vertical position sweeps a shared filter and delay, so the
-// same notes feel brighter or darker depending on where you touch.
+// Drift: an eight-pad pentatonic drone instrument, pitched and voiced like a
+// didgeridoo. Every note lives in the same scale, so any combination of pads
+// — one finger or five — sounds consonant. Vertical position sweeps a shared
+// filter and delay, so the same notes feel brighter or darker depending on
+// where you touch.
 
-const MIN_CUTOFF = 350;
-const MAX_CUTOFF = 6000;
-const ATTACK = 0.012;
-const RELEASE = 0.35;
+const MIN_CUTOFF = 150;
+const MAX_CUTOFF = 2500;
+const ATTACK = 0.05;
+const RELEASE = 0.6;
+// The vocal-tract "wow" a didgeridoo player shapes with tongue and mouth:
+// a bandpass formant whose centre frequency an LFO rocks back and forth.
+const FORMANT_CENTER = 500;
+const FORMANT_DEPTH = 300;
+const FORMANT_RATE = 4.5;
 
 const instrument = document.querySelector<HTMLElement>("#instrument");
 const hint = document.querySelector<HTMLElement>("#hint");
@@ -57,8 +63,23 @@ function ensureAudio(): AudioContext {
   const wet = context.createGain();
   wet.gain.value = 0.22;
 
-  filter.connect(compressor);
-  filter.connect(delay);
+  const formant = context.createBiquadFilter();
+  formant.type = "bandpass";
+  formant.Q.value = 6;
+  formant.frequency.value = FORMANT_CENTER;
+
+  const formantLfo = context.createOscillator();
+  formantLfo.type = "sine";
+  formantLfo.frequency.value = FORMANT_RATE;
+  const formantLfoGain = context.createGain();
+  formantLfoGain.gain.value = FORMANT_DEPTH;
+  formantLfo.connect(formantLfoGain);
+  formantLfoGain.connect(formant.frequency);
+  formantLfo.start();
+
+  filter.connect(formant);
+  formant.connect(compressor);
+  formant.connect(delay);
   delay.connect(feedback);
   feedback.connect(delay);
   delay.connect(wet);
@@ -83,7 +104,7 @@ function noteOn(voiceId: string, frequency: number, pad: HTMLElement | null) {
   if (voices.has(voiceId)) return;
 
   const oscillator = context.createOscillator();
-  oscillator.type = "triangle";
+  oscillator.type = "sawtooth";
   oscillator.frequency.value = frequency;
 
   const gain = context.createGain();
