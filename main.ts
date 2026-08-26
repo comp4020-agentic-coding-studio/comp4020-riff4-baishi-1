@@ -23,9 +23,9 @@ const waveformCanvas = document.querySelector<HTMLCanvasElement>("#waveform");
 const waveformCtx = waveformCanvas?.getContext("2d") ?? null;
 const pitchSlider = document.querySelector<HTMLInputElement>("#pitch");
 const pitchReadout = document.querySelector<HTMLElement>("#pitch-readout");
-// Fixed cool blue against the warm sunflower yellow everywhere else, so the
-// trace reads as an instrument panel rather than blending into the page.
-const WAVEFORM_HUE = 200;
+// Classic dual-phosphor terminal: amber for the instrument, green for the
+// diagnostic scope, so the trace reads as a distinct system readout.
+const WAVEFORM_HUE = 120;
 
 let audioContext: AudioContext | null = null;
 let masterFilter: BiquadFilterNode | null = null;
