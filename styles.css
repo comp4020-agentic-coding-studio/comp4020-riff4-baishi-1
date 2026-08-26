@@ -69,26 +69,54 @@ h1 {
   border-radius: 0;
 }
 
+/* A BBS terminal dropped into the page: black CRT, amber phosphor text,
+   scanlines, a reverse-video title bar, and a blinking cursor on the
+   readout. Deliberately un-themed against the sunflower page around it —
+   a terminal doesn't match its wallpaper. */
 .pitch-control {
+  --amber: #ffb000;
   width: 100vw;
   margin: 1.5rem calc(-1 * var(--gutter)) 0;
-  padding: 1rem var(--gutter);
+  font-family: "Courier New", ui-monospace, monospace;
+  background: #000;
+  border-top: 0.3rem solid var(--amber);
+  border-bottom: 0.3rem solid var(--amber);
+  box-shadow: 0 0 1.5rem rgb(255 176 0 / 0.35) inset;
+}
+
+.bbs-titlebar {
+  background: var(--amber);
+  color: #000;
+  font-weight: 700;
+  letter-spacing: 0.05em;
+  padding: 0.3rem var(--gutter);
+  font-size: 0.75rem;
+  white-space: nowrap;
+  overflow-x: auto;
+}
+
+.bbs-body {
   display: flex;
   align-items: center;
   justify-content: center;
   gap: 1rem;
-  background: var(--seed-dark);
-  border-top: 0.2rem solid var(--seed);
-  border-bottom: 0.2rem solid var(--seed);
+  padding: 1rem var(--gutter);
+  position: relative;
+  background-image: repeating-linear-gradient(
+    0deg,
+    rgb(255 176 0 / 0.06) 0,
+    rgb(255 176 0 / 0.06) 1px,
+    transparent 1px,
+    transparent 3px
+  );
 }
 
 .pitch-control label {
-  color: hsl(var(--bg-hue) 90% 65%);
+  color: var(--amber);
   font-weight: 700;
-  letter-spacing: 0.1em;
-  text-transform: uppercase;
-  font-size: 0.85rem;
+  letter-spacing: 0.05em;
   flex-shrink: 0;
+  text-shadow: 0 0 0.4rem rgb(255 176 0 / 0.6);
 }
 
 .pitch-control input[type="range"] {
@@ -96,8 +124,8 @@ h1 {
   max-width: 64rem;
   appearance: none;
   height: 0.9rem;
-  background: hsl(calc(var(--bg-hue) + var(--brightness) * 40) 80% 30%);
-  border: 0.15rem solid hsl(var(--bg-hue) 90% 55%);
+  background: #1a0f00;
+  border: 0.15rem solid var(--amber);
   border-radius: 0;
 }
 
@@ -106,8 +134,8 @@ h1 {
   width: 1rem;
   height: 2rem;
   border-radius: 0;
-  background: hsl(var(--bg-hue) 95% 60%);
-  border: 0.15rem solid var(--seed);
+  background: var(--amber);
+  border: 0.15rem solid #000;
   cursor: pointer;
 }
 
@@ -115,9 +143,37 @@ h1 {
   width: 1rem;
   height: 2rem;
   border-radius: 0;
-  background: hsl(var(--bg-hue) 95% 60%);
-  border: 0.15rem solid var(--seed);
+  background: var(--amber);
+  border: 0.15rem solid #000;
   cursor: pointer;
+}
+
+.bbs-readout {
+  color: var(--amber);
+  font-weight: 700;
+  flex-shrink: 0;
+  min-width: 4.5em;
+  text-shadow: 0 0 0.4rem rgb(255 176 0 / 0.6);
+}
+
+.bbs-cursor {
+  animation: bbs-blink 1s step-end infinite;
+}
+
+@keyframes bbs-blink {
+  0%,
+  100% {
+    opacity: 1;
+  }
+  50% {
+    opacity: 0;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .bbs-cursor {
+    animation: none;
+  }
 }
 
 .instrument {

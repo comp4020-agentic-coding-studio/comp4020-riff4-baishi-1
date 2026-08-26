@@ -8,6 +8,8 @@ const MIN_CUTOFF = 150;
 const MAX_CUTOFF = 2500;
 const ATTACK = 0.05;
 const RELEASE = 0.6;
+const VOICE_GAIN = 0.35;
+const MASTER_GAIN = 1.5;
 // The vocal-tract "wow" a didgeridoo player shapes with tongue and mouth:
 // a bandpass formant whose centre frequency an LFO rocks back and forth.
 const FORMANT_CENTER = 500;
@@ -20,6 +22,7 @@ const pads = Array.from(document.querySelectorAll<HTMLButtonElement>(".pad"));
 const waveformCanvas = document.querySelector<HTMLCanvasElement>("#waveform");
 const waveformCtx = waveformCanvas?.getContext("2d") ?? null;
 const pitchSlider = document.querySelector<HTMLInputElement>("#pitch");
+const pitchReadout = document.querySelector<HTMLElement>("#pitch-readout");
 // Fixed cool blue against the warm sunflower yellow everywhere else, so the
 // trace reads as an instrument panel rather than blending into the page.
 const WAVEFORM_HUE = 200;
@@ -86,11 +89,17 @@ function ensureAudio(): AudioContext {
   feedback.connect(delay);
   delay.connect(wet);
   wet.connect(compressor);
-  compressor.connect(context.destination);
+
+  // Boost after compression, not before — the compressor's already tamed
+  // the peaks, so this makeup gain adds loudness without adding clipping.
+  const makeup = context.createGain();
+  makeup.gain.value = MASTER_GAIN;
+  compressor.connect(makeup);
+  makeup.connect(context.destination);
 
   const analyserNode = context.createAnalyser();
   analyserNode.fftSize = 2048;
-  compressor.connect(analyserNode);
+  makeup.connect(analyserNode);
 
   audioContext = context;
   masterFilter = filter;
@@ -111,7 +120,7 @@ function noteOn(voiceId: string, baseFrequency: number, pad: HTMLElement | null)
 
   const gain = context.createGain();
   gain.gain.setValueAtTime(0, context.currentTime);
-  gain.gain.linearRampToValueAtTime(0.22, context.currentTime + ATTACK);
+  gain.gain.linearRampToValueAtTime(VOICE_GAIN, context.currentTime + ATTACK);
 
   oscillator.connect(gain);
   gain.connect(masterFilter);
@@ -136,6 +145,16 @@ function setPitchMultiplier(value: number) {
 
 pitchSlider?.addEventListener("input", () => {
   setPitchMultiplier(Number(pitchSlider.value));
+  if (pitchReadout) {
+    const percent = Math.round(pitchMultiplier * 100);
+    pitchReadout.textContent = "";
+    pitchReadout.append(`${percent}%`);
+    const cursor = document.createElement("span");
+    cursor.className = "bbs-cursor";
+    cursor.setAttribute("aria-hidden", "true");
+    cursor.textContent = "_";
+    pitchReadout.append(cursor);
+  }
 });
 
 function noteOff(voiceId: string, pad: HTMLElement | null) {
