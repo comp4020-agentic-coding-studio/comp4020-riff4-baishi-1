@@ -61,6 +61,18 @@
         Slide across pads to bend between notes. Move up and down to brighten or darken the sound.
       </p>
     </main>
+    <section class="pitch-control">
+      <label for="pitch">Frequency</label>
+      <input
+        type="range"
+        id="pitch"
+        min="0.5"
+        max="2"
+        step="0.01"
+        value="1"
+        aria-label="Frequency: scales every pad up or down together"
+      />
+    </section>
     <script type="module" src="./main.ts"></script>
   </body>
 </html>

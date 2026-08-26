@@ -19,9 +19,10 @@ const hint = document.querySelector<HTMLElement>("#hint");
 const pads = Array.from(document.querySelectorAll<HTMLButtonElement>(".pad"));
 const waveformCanvas = document.querySelector<HTMLCanvasElement>("#waveform");
 const waveformCtx = waveformCanvas?.getContext("2d") ?? null;
-// Same hue the pads glow at, so the trace reads as part of the instrument
-// rather than a separate widget bolted on.
-const waveformHue = Number(getComputedStyle(document.documentElement).getPropertyValue("--bg-hue")) + 60;
+const pitchSlider = document.querySelector<HTMLInputElement>("#pitch");
+// Fixed cool blue against the warm sunflower yellow everywhere else, so the
+// trace reads as an instrument panel rather than blending into the page.
+const WAVEFORM_HUE = 200;
 
 let audioContext: AudioContext | null = null;
 let masterFilter: BiquadFilterNode | null = null;
@@ -29,8 +30,9 @@ let analyser: AnalyserNode | null = null;
 let waveformData: Uint8Array<ArrayBuffer> | null = null;
 let brightness = 0.5; // 0 = dark, 1 = bright — also drives the CSS backdrop.
 
-type Voice = { oscillator: OscillatorNode; gain: GainNode };
+type Voice = { oscillator: OscillatorNode; gain: GainNode; baseFrequency: number };
 const voices = new Map<string, Voice>();
+let pitchMultiplier = 1;
 
 function markPlayed() {
   hint?.classList.add("played");
@@ -97,7 +99,7 @@ function ensureAudio(): AudioContext {
   return context;
 }
 
-function noteOn(voiceId: string, frequency: number, pad: HTMLElement | null) {
+function noteOn(voiceId: string, baseFrequency: number, pad: HTMLElement | null) {
   const context = ensureAudio();
   if (context.state === "suspended") void context.resume();
   if (!masterFilter) return;
@@ -105,7 +107,7 @@ function noteOn(voiceId: string, frequency: number, pad: HTMLElement | null) {
 
   const oscillator = context.createOscillator();
   oscillator.type = "sawtooth";
-  oscillator.frequency.value = frequency;
+  oscillator.frequency.value = baseFrequency * pitchMultiplier;
 
   const gain = context.createGain();
   gain.gain.setValueAtTime(0, context.currentTime);
@@ -115,10 +117,26 @@ function noteOn(voiceId: string, frequency: number, pad: HTMLElement | null) {
   gain.connect(masterFilter);
   oscillator.start();
 
-  voices.set(voiceId, { oscillator, gain });
+  voices.set(voiceId, { oscillator, gain, baseFrequency });
   pad?.classList.add("active");
   markPlayed();
 }
+
+// The frequency control spans the whole width of the page and re-pitches
+// every pad together, live — held notes glide to the new pitch instead of
+// waiting for the next press.
+function setPitchMultiplier(value: number) {
+  pitchMultiplier = value;
+  if (!audioContext) return;
+  const now = audioContext.currentTime;
+  for (const voice of voices.values()) {
+    voice.oscillator.frequency.setTargetAtTime(voice.baseFrequency * pitchMultiplier, now, 0.05);
+  }
+}
+
+pitchSlider?.addEventListener("input", () => {
+  setPitchMultiplier(Number(pitchSlider.value));
+});
 
 function noteOff(voiceId: string, pad: HTMLElement | null) {
   const voice = voices.get(voiceId);
@@ -298,34 +316,46 @@ function resizeWaveform() {
   waveformCtx.setTransform(dpr, 0, 0, dpr, 0, 0);
 }
 
-function drawWaveform() {
-  requestAnimationFrame(drawWaveform);
-  if (!waveformCanvas || !waveformCtx) return;
-
-  const width = waveformCanvas.clientWidth;
-  const height = waveformCanvas.clientHeight;
-  waveformCtx.clearRect(0, 0, width, height);
-  waveformCtx.lineWidth = 2;
-
+function traceWaveformPath(width: number, height: number, mirror: boolean) {
+  if (!waveformCtx) return;
+  waveformCtx.beginPath();
   if (!analyser || !waveformData) {
-    waveformCtx.strokeStyle = `hsl(${waveformHue} 40% 60% / 0.4)`;
-    waveformCtx.beginPath();
     waveformCtx.moveTo(0, height / 2);
     waveformCtx.lineTo(width, height / 2);
-    waveformCtx.stroke();
     return;
   }
-
-  analyser.getByteTimeDomainData(waveformData);
-  waveformCtx.strokeStyle = `hsl(${waveformHue} 90% 65%)`;
-  waveformCtx.beginPath();
   const step = width / waveformData.length;
   for (let i = 0; i < waveformData.length; i++) {
-    const y = height / 2 + (waveformData[i] / 128 - 1) * (height / 2) * 0.9;
+    const offset = (waveformData[i] / 128 - 1) * (height / 2) * 0.9 * (mirror ? -1 : 1);
+    const y = height / 2 + offset;
     const x = i * step;
     if (i === 0) waveformCtx.moveTo(x, y);
     else waveformCtx.lineTo(x, y);
   }
+}
+
+function drawWaveform() {
+  requestAnimationFrame(drawWaveform);
+  if (!waveformCanvas || !waveformCtx) return;
+  if (analyser && waveformData) analyser.getByteTimeDomainData(waveformData);
+
+  const width = waveformCanvas.clientWidth;
+  const height = waveformCanvas.clientHeight;
+  const isIdle = !analyser || !waveformData;
+  waveformCtx.clearRect(0, 0, width, height);
+
+  // A faint mirrored reflection under the real trace gives the panel depth,
+  // like a scope with phosphor persistence, without a second data source.
+  waveformCtx.lineWidth = 2;
+  waveformCtx.shadowBlur = 0;
+  waveformCtx.strokeStyle = `hsl(${WAVEFORM_HUE} 90% 55% / ${isIdle ? 0.15 : 0.25})`;
+  traceWaveformPath(width, height, true);
+  waveformCtx.stroke();
+
+  waveformCtx.strokeStyle = `hsl(${WAVEFORM_HUE} 95% ${isIdle ? 55 : 70}% / ${isIdle ? 0.4 : 1})`;
+  waveformCtx.shadowColor = `hsl(${WAVEFORM_HUE} 95% 65%)`;
+  waveformCtx.shadowBlur = isIdle ? 0 : 12;
+  traceWaveformPath(width, height, false);
   waveformCtx.stroke();
 }
 
