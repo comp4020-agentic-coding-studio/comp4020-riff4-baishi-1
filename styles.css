@@ -14,8 +14,11 @@
 body {
   position: relative;
   margin: 0;
-  padding: var(--gutter);
-  min-height: 100vh;
+  padding: 0.5rem var(--gutter) 0;
+  height: 100vh;
+  overflow: hidden;
+  display: flex;
+  flex-direction: column;
   font-family: "Courier New", ui-monospace, monospace;
   line-height: 1.6;
   color: var(--amber);
@@ -54,7 +57,28 @@ main,
 header {
   border: 0.15rem solid var(--amber);
   background: var(--ink);
-  margin-bottom: 1.5rem;
+  margin-bottom: 0.5rem;
+  flex-shrink: 0;
+}
+
+.fart-btn {
+  appearance: none;
+  border: none;
+  border-radius: 0;
+  font: inherit;
+  display: block;
+  padding: 0.3rem 1rem;
+  background: var(--amber);
+  color: var(--ink);
+  font-weight: 700;
+  letter-spacing: 0.05em;
+  text-transform: uppercase;
+  cursor: pointer;
+}
+
+.fart-btn:hover,
+.fart-btn:focus-visible {
+  background: #fff;
 }
 
 nav[aria-label="Primary"] {
@@ -79,12 +103,19 @@ nav[aria-label="Primary"] a:focus-visible {
 
 main {
   max-width: 40rem;
+  width: 100%;
   margin: 0 auto;
   text-align: center;
   border: 0.15rem solid var(--amber);
   background: var(--panel);
-  padding: 1.5rem var(--gutter) 2rem;
+  padding: 0.75rem var(--gutter) 1rem;
   box-shadow: 0 0 2rem rgb(255 176 0 / 0.15) inset;
+  flex: 1;
+  min-height: 0;
+  overflow: hidden;
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
 }
 
 a {
@@ -92,9 +123,9 @@ a {
 }
 
 h1 {
-  font-size: 2.5rem;
+  font-size: clamp(1.25rem, 4vh, 2rem);
   letter-spacing: 0.3em;
-  margin: 0 0 0.5rem;
+  margin: 0 0 0.25rem;
   text-transform: uppercase;
   text-shadow: 0 0 0.6rem rgb(255 176 0 / 0.7);
 }
@@ -122,8 +153,9 @@ h1 {
   display: block;
   width: 100%;
   max-width: 64rem;
-  height: min(40vh, 18rem);
+  height: min(16vh, 7rem);
   margin: 0 auto;
+  flex-shrink: 0;
   background: var(--ink);
   border: 0.2rem solid var(--amber-dim);
   border-radius: 0;
@@ -133,7 +165,8 @@ h1 {
    title bar, scanlines, and a blinking cursor on the readout. */
 .pitch-control {
   width: 100vw;
-  margin: 1.5rem calc(-1 * var(--gutter)) 0;
+  flex-shrink: 0;
+  margin: 0.5rem calc(-1 * var(--gutter)) 0;
   font-family: "Courier New", ui-monospace, monospace;
   background: var(--ink);
   border-top: 0.3rem solid var(--amber);
@@ -157,7 +190,7 @@ h1 {
   align-items: center;
   justify-content: center;
   gap: 1rem;
-  padding: 1rem var(--gutter);
+  padding: 0.4rem var(--gutter);
   position: relative;
   background-image: repeating-linear-gradient(
     0deg,
@@ -186,10 +219,27 @@ h1 {
   border-radius: 0;
 }
 
+.bbs-toggles {
+  gap: 2rem;
+  font-size: 0.8rem;
+  font-weight: 700;
+  letter-spacing: 0.05em;
+  color: var(--amber);
+}
+
+.bbs-toggles label {
+  cursor: pointer;
+}
+
+.bbs-toggles input {
+  accent-color: var(--amber);
+  cursor: pointer;
+}
+
 .pitch-control input[type="range"]::-webkit-slider-thumb {
   appearance: none;
   width: 1rem;
-  height: 2rem;
+  height: 1.5rem;
   border-radius: 0;
   background: var(--amber);
   border: 0.15rem solid var(--ink);
@@ -198,7 +248,7 @@ h1 {
 
 .pitch-control input[type="range"]::-moz-range-thumb {
   width: 1rem;
-  height: 2rem;
+  height: 1.5rem;
   border-radius: 0;
   background: var(--amber);
   border: 0.15rem solid var(--ink);
@@ -234,7 +284,7 @@ h1 {
   justify-content: center;
   align-items: flex-end;
   gap: clamp(0.25rem, 1.5cqw, 1rem);
-  padding: 2rem 0;
+  padding: 0.75rem 0;
   flex-wrap: wrap;
 }
 
@@ -245,8 +295,8 @@ h1 {
   border-radius: 0;
   flex-shrink: 0;
   -webkit-tap-highlight-color: transparent;
-  width: clamp(2.25rem, 8cqw, 4.5rem);
-  height: clamp(2.25rem, 8cqw, 4.5rem);
+  width: clamp(2rem, 8cqw, 3.5rem);
+  height: clamp(2rem, 8cqw, 3.5rem);
   background: var(--ink);
   box-shadow: 0 0 calc(var(--glow) * 2rem) rgb(255 176 0 / var(--glow));
   color: var(--amber);

@@ -23,6 +23,11 @@ const waveformCanvas = document.querySelector<HTMLCanvasElement>("#waveform");
 const waveformCtx = waveformCanvas?.getContext("2d") ?? null;
 const pitchSlider = document.querySelector<HTMLInputElement>("#pitch");
 const pitchReadout = document.querySelector<HTMLElement>("#pitch-readout");
+const reverbSlider = document.querySelector<HTMLInputElement>("#reverb");
+const reverbReadout = document.querySelector<HTMLElement>("#reverb-readout");
+const stickyToggle = document.querySelector<HTMLInputElement>("#sticky");
+const invertToggle = document.querySelector<HTMLInputElement>("#invert");
+const fartBtn = document.querySelector<HTMLElement>("#fart");
 // Classic dual-phosphor terminal: amber for the instrument, green for the
 // diagnostic scope, so the trace reads as a distinct system readout.
 const WAVEFORM_HUE = 120;
@@ -36,6 +41,8 @@ let brightness = 0.5; // 0 = dark, 1 = bright — also drives the CSS backdrop.
 type Voice = { oscillator: OscillatorNode; gain: GainNode; baseFrequency: number };
 const voices = new Map<string, Voice>();
 let pitchMultiplier = 1;
+let wetGain: GainNode | null = null;
+let invertGain: GainNode | null = null;
 
 function markPlayed() {
   hint?.classList.add("played");
@@ -95,11 +102,17 @@ function ensureAudio(): AudioContext {
   const makeup = context.createGain();
   makeup.gain.value = MASTER_GAIN;
   compressor.connect(makeup);
-  makeup.connect(context.destination);
+  const invert = context.createGain();
+  invert.gain.value = invertToggle?.checked ? -1 : 1;
+  makeup.connect(invert);
+  invert.connect(context.destination);
+  wetGain = wet;
+  invertGain = invert;
+  if (reverbSlider) wet.gain.value = Number(reverbSlider.value);
 
   const analyserNode = context.createAnalyser();
   analyserNode.fftSize = 2048;
-  makeup.connect(analyserNode);
+  invert.connect(analyserNode);
 
   audioContext = context;
   masterFilter = filter;
@@ -142,6 +155,48 @@ function setPitchMultiplier(value: number) {
     voice.oscillator.frequency.setTargetAtTime(voice.baseFrequency * pitchMultiplier, now, 0.05);
   }
 }
+
+reverbSlider?.addEventListener("input", () => {
+  const v = Number(reverbSlider.value);
+  if (wetGain && audioContext) wetGain.gain.setTargetAtTime(v, audioContext.currentTime, 0.05);
+  if (reverbReadout) reverbReadout.textContent = `${Math.round(v * 100)}%`;
+});
+
+invertToggle?.addEventListener("change", () => {
+  if (invertGain && audioContext) invertGain.gain.value = invertToggle.checked ? -1 : 1;
+});
+
+fartBtn?.addEventListener("click", () => {
+  const ctx = ensureAudio();
+  if (ctx.state === "suspended") void ctx.resume();
+  const t = ctx.currentTime;
+  const osc = ctx.createOscillator();
+  osc.type = "sawtooth";
+  osc.frequency.setValueAtTime(160, t);
+  osc.frequency.exponentialRampToValueAtTime(45, t + 0.35);
+  const lfo = ctx.createOscillator();
+  lfo.type = "square";
+  lfo.frequency.value = 28;
+  const lfoAmt = ctx.createGain();
+  lfoAmt.gain.value = 40;
+  lfo.connect(lfoAmt);
+  lfoAmt.connect(osc.frequency);
+  const lp = ctx.createBiquadFilter();
+  lp.type = "lowpass";
+  lp.frequency.value = 900;
+  const g = ctx.createGain();
+  g.gain.setValueAtTime(0.0001, t);
+  g.gain.exponentialRampToValueAtTime(0.9, t + 0.02);
+  g.gain.exponentialRampToValueAtTime(0.0001, t + 0.4);
+  osc.connect(lp);
+  lp.connect(g);
+  g.connect(invertGain ?? ctx.destination);
+  osc.start(t);
+  lfo.start(t);
+  osc.stop(t + 0.45);
+  lfo.stop(t + 0.45);
+  markPlayed();
+});
 
 pitchSlider?.addEventListener("input", () => {
   setPitchMultiplier(Number(pitchSlider.value));
@@ -190,10 +245,24 @@ function padUnderPoint(x: number, y: number): HTMLElement | null {
   return el?.closest<HTMLElement>(".pad") ?? null;
 }
 
+// Sticky keys: a press latches the note on, the next press on that pad
+// releases it. Uses a pad-keyed voice id so any input path toggles the
+// same voice.
+function stickyToggleNote(pad: HTMLElement): void {
+  const id = `sticky-${pad.dataset.key}`;
+  if (voices.has(id)) noteOff(id, pad);
+  else noteOn(id, frequencyOf(pad), pad);
+}
+
 instrument?.addEventListener("pointerdown", (event) => {
   const pad = (event.target as HTMLElement).closest<HTMLElement>(".pad");
   if (!pad) return;
   event.preventDefault();
+  if (stickyToggle?.checked) {
+    stickyToggleNote(pad);
+    updateBrightnessFromClientY(event.clientY);
+    return;
+  }
   pointerPads.set(event.pointerId, pad);
   noteOn(`pointer-${event.pointerId}`, frequencyOf(pad), pad);
   updateBrightnessFromClientY(event.clientY);
@@ -283,7 +352,8 @@ document.addEventListener("keydown", (event) => {
 
   const pad = keyPads.get(key);
   if (pad) {
-    noteOn(`key-${key}`, frequencyOf(pad), pad);
+    if (stickyToggle?.checked) stickyToggleNote(pad);
+    else noteOn(`key-${key}`, frequencyOf(pad), pad);
     return;
   }
 
