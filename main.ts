@@ -451,3 +451,153 @@ function drawWaveform() {
 window.addEventListener("resize", resizeWaveform);
 resizeWaveform();
 requestAnimationFrame(drawWaveform);
+
+// ---------------------------------------------------------------------------
+// FX layer: a full-viewport canvas of deliberate junk — particle bursts,
+// drifting emoji stickers, and several overlaid waveform traces that ignore
+// the scope box entirely.
+// ---------------------------------------------------------------------------
+
+const fxCanvas = document.querySelector<HTMLCanvasElement>("#fx");
+const fxCtx = fxCanvas?.getContext("2d") ?? null;
+
+const STICKER_GLYPHS = ["★", "◆", "▲", "☺", "♪", "♫", "✦", "◉", "☠", "✷", "❖", "⚡"];
+const FX_HUES = [120, 40, 200, 320, 60, 280];
+
+type Particle = { x: number; y: number; vx: number; vy: number; life: number; hue: number; size: number };
+type Sticker = { x: number; y: number; vx: number; vy: number; life: number; glyph: string; hue: number; size: number; spin: number; angle: number };
+
+const particles: Particle[] = [];
+const stickers: Sticker[] = [];
+
+function resizeFx() {
+  if (!fxCanvas || !fxCtx) return;
+  const dpr = window.devicePixelRatio || 1;
+  fxCanvas.width = window.innerWidth * dpr;
+  fxCanvas.height = window.innerHeight * dpr;
+  fxCtx.setTransform(dpr, 0, 0, dpr, 0, 0);
+}
+
+function burstAt(x: number, y: number) {
+  const hue = FX_HUES[Math.floor(Math.random() * FX_HUES.length)];
+  for (let i = 0; i < 28; i++) {
+    const a = Math.random() * Math.PI * 2;
+    const speed = 1 + Math.random() * 6;
+    particles.push({
+      x, y,
+      vx: Math.cos(a) * speed,
+      vy: Math.sin(a) * speed - 1,
+      life: 1,
+      hue: hue + Math.random() * 40,
+      size: 1 + Math.random() * 4,
+    });
+  }
+  for (let i = 0; i < 3; i++) {
+    stickers.push({
+      x, y,
+      vx: (Math.random() - 0.5) * 4,
+      vy: -1 - Math.random() * 3,
+      life: 1,
+      glyph: STICKER_GLYPHS[Math.floor(Math.random() * STICKER_GLYPHS.length)],
+      hue: Math.random() * 360,
+      size: 14 + Math.random() * 34,
+      spin: (Math.random() - 0.5) * 0.3,
+      angle: Math.random() * Math.PI * 2,
+    });
+  }
+}
+
+// Every pad press throws a burst from wherever that pad is on screen.
+for (const pad of pads) {
+  pad.addEventListener("pointerdown", () => {
+    const r = pad.getBoundingClientRect();
+    burstAt(r.left + r.width / 2, r.top + r.height / 2);
+  });
+}
+document.addEventListener("keydown", (event) => {
+  const pad = keyPads.get(event.key.toLowerCase());
+  if (!pad || event.repeat) return;
+  const r = pad.getBoundingClientRect();
+  burstAt(r.left + r.width / 2, r.top + r.height / 2);
+});
+fartBtn?.addEventListener("click", () => {
+  for (let i = 0; i < 6; i++) {
+    burstAt(Math.random() * window.innerWidth, Math.random() * window.innerHeight);
+  }
+});
+
+// Overlaid waveform traces, each with its own scale, vertical anchor, phase
+// offset and colour — nothing here respects the scope box.
+const OVERLAYS = [
+  { hue: 120, amp: 0.5, yFrac: 0.28, skip: 3, width: 1.5, alpha: 0.55, phase: 0 },
+  { hue: 320, amp: 0.9, yFrac: 0.5, skip: 7, width: 2.5, alpha: 0.4, phase: 200 },
+  { hue: 40, amp: 1.4, yFrac: 0.62, skip: 11, width: 1, alpha: 0.35, phase: 500 },
+  { hue: 200, amp: 0.35, yFrac: 0.8, skip: 5, width: 3, alpha: 0.3, phase: 900 },
+];
+
+let fxTick = 0;
+
+function drawFx() {
+  requestAnimationFrame(drawFx);
+  if (!fxCanvas || !fxCtx) return;
+  fxTick++;
+
+  const w = window.innerWidth;
+  const h = window.innerHeight;
+  fxCtx.clearRect(0, 0, w, h);
+
+  if (analyser && waveformData) {
+    analyser.getByteTimeDomainData(waveformData);
+    for (const o of OVERLAYS) {
+      fxCtx.save();
+      fxCtx.globalAlpha = o.alpha;
+      fxCtx.strokeStyle = `hsl(${o.hue + Math.sin(fxTick / 60) * 30} 95% 60%)`;
+      fxCtx.lineWidth = o.width;
+      fxCtx.shadowColor = `hsl(${o.hue} 95% 60%)`;
+      fxCtx.shadowBlur = 10;
+      fxCtx.beginPath();
+      const n = waveformData.length;
+      let first = true;
+      for (let i = 0; i < n; i += o.skip) {
+        const v = waveformData[(i + o.phase) % n] / 128 - 1;
+        const x = (i / n) * w;
+        const y = h * o.yFrac + v * h * 0.25 * o.amp;
+        if (first) { fxCtx.moveTo(x, y); first = false; }
+        else fxCtx.lineTo(x, y);
+      }
+      fxCtx.stroke();
+      fxCtx.restore();
+    }
+  }
+
+  for (let i = particles.length - 1; i >= 0; i--) {
+    const p = particles[i];
+    p.x += p.vx; p.y += p.vy; p.vy += 0.12; p.vx *= 0.99; p.life -= 0.018;
+    if (p.life <= 0) { particles.splice(i, 1); continue; }
+    fxCtx.globalAlpha = Math.max(0, p.life);
+    fxCtx.fillStyle = `hsl(${p.hue} 95% 60%)`;
+    fxCtx.fillRect(p.x, p.y, p.size, p.size);
+  }
+
+  for (let i = stickers.length - 1; i >= 0; i--) {
+    const s = stickers[i];
+    s.x += s.vx; s.y += s.vy; s.vy += 0.06; s.life -= 0.008; s.angle += s.spin;
+    if (s.life <= 0) { stickers.splice(i, 1); continue; }
+    fxCtx.save();
+    fxCtx.globalAlpha = Math.max(0, s.life);
+    fxCtx.translate(s.x, s.y);
+    fxCtx.rotate(s.angle);
+    fxCtx.font = `${s.size}px "Courier New", monospace`;
+    fxCtx.textAlign = "center";
+    fxCtx.fillStyle = `hsl(${s.hue} 95% 65%)`;
+    fxCtx.shadowColor = `hsl(${s.hue} 95% 65%)`;
+    fxCtx.shadowBlur = 12;
+    fxCtx.fillText(s.glyph, 0, 0);
+    fxCtx.restore();
+  }
+  fxCtx.globalAlpha = 1;
+}
+
+window.addEventListener("resize", resizeFx);
+resizeFx();
+requestAnimationFrame(drawFx);

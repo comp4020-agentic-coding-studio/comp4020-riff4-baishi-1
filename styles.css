@@ -54,6 +54,15 @@ main,
   z-index: 2;
 }
 
+.fx {
+  position: fixed;
+  inset: 0;
+  width: 100vw;
+  height: 100vh;
+  pointer-events: none;
+  z-index: 5;
+}
+
 header {
   border: 0.15rem solid var(--amber);
   background: var(--ink);
